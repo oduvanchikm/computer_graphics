@@ -5,7 +5,7 @@
 // Кривая должна обновляться в реальном времени при изменении положения любой контрольной точки.
 // Дополнительно: Реализуйте анимацию, где кривая плавно изменяет свою форму в зависимости от времени.
 
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -18,7 +18,6 @@ namespace BezierCurveExample
     {
         private Vector2[] controlPoints;
         private const int NumCurvePoints = 100;
-        private float time = 0.0f;
 
         public BezierCurveWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
             : base(gameWindowSettings, nativeWindowSettings)
@@ -34,39 +33,37 @@ namespace BezierCurveExample
 
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
+            base.OnUpdateFrame(args);
+
             var input = KeyboardState;
 
             if (input.IsKeyDown(Keys.Escape))
                 Close();
-
-            time += (float)args.Time;
-            for (int i = 0; i < controlPoints.Length; i++)
-            {
-                controlPoints[i].Y = (float)Math.Sin(time + i);
-            }
         }
 
         protected override void OnRenderFrame(FrameEventArgs args)
         {
-            GL.Clear(ClearBufferMask.ColorBufferBit);
+            base.OnRenderFrame(args);
 
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+            
             DrawControlPoints();
             DrawBezierCurve();
 
-            Context.SwapBuffers();
+            SwapBuffers();
         }
 
         private void DrawControlPoints()
         {
             GL.PointSize(10f);
-            GL.(PrimitiveType.Points);
-            GL.Color3(1.0, 0.0, 0.0);
-
+            GL.Begin(PrimitiveType.Points);
+            GL.Color3(1.0f, 0.0f, 1.0f);
+            
             foreach (var point in controlPoints)
             {
                 GL.Vertex2(point);
             }
-
+            
             GL.End();
         }
 
@@ -90,20 +87,21 @@ namespace BezierCurveExample
         {
             GL.LineWidth(2f);
             GL.Begin(PrimitiveType.LineStrip);
-            GL.Color3(0.0, 1.0, 0.0);
-
+            GL.Color3(0.0f, 1.0f, 0.0f);
+            
             for (int i = 0; i < NumCurvePoints; i++)
             {
                 float t = i / (float)(NumCurvePoints - 1);
                 Vector2 point = CalculateBezierPoint(t, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
                 GL.Vertex2(point);
             }
-
+            
             GL.End();
         }
 
         protected override void OnResize(ResizeEventArgs e)
         {
+            base.OnResize(e);
             GL.Viewport(0, 0, Size.X, Size.Y);
         }
 
@@ -123,5 +121,4 @@ namespace BezierCurveExample
         }
     }
 }
-
 
