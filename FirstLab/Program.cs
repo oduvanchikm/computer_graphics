@@ -1,124 +1,159 @@
-﻿// Вариант 5. Построение кубической кривой Безье
+// Вариант 5. Построение кубической кривой Безье
 
 // Постройте кубическую кривую Безье, используя четыре контрольные точки.
 // Контрольные точки должны быть отображены на экране и иметь возможность перемещения.
 // Кривая должна обновляться в реальном времени при изменении положения любой контрольной точки.
 // Дополнительно: Реализуйте анимацию, где кривая плавно изменяет свою форму в зависимости от времени.
 
-using OpenTK.Graphics.OpenGL;
-using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
-using OpenTK.Windowing.GraphicsLibraryFramework;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using System;
 
-namespace BezierCurveExample
+public class BezierCurveWindow : GameWindow
 {
-    public class BezierCurveWindow : GameWindow
+    private int _program;
+    private int _vao, _vbo, _ebo;
+
+    public BezierCurveWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
+        : base(gameWindowSettings, nativeWindowSettings)
     {
-        private Vector2[] controlPoints;
-        private const int NumCurvePoints = 100;
+    }
 
-        public BezierCurveWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
-            : base(gameWindowSettings, nativeWindowSettings)
+    protected override void OnLoad()
+    {
+        base.OnLoad();
+
+        // Контрольные точки кривой Безье
+        Vector3[] controlPoints = new Vector3[]
         {
-            controlPoints = new Vector2[4]
-            {
-                new Vector2(-0.5f, -0.5f),
-                new Vector2(-0.2f, 0.8f),
-                new Vector2(0.2f, -0.8f),
-                new Vector2(0.5f, 0.5f)
-            };
+            new Vector3(-0.8f, -0.8f, 0.0f),
+            new Vector3(-0.4f, 0.8f, 0.0f),
+            new Vector3(0.4f, -0.8f, 0.0f),
+            new Vector3(0.8f, 0.8f, 0.0f)
+        };
+
+        // Создаем шейдерную программу
+        _program = CreateProgram(vertexShaderSource, fragmentShaderSource);
+
+        CheckProgramLink(_program);
+
+        int controlPointsLocation = GL.GetUniformLocation(_program, "controlPoints");
+        
+        GL.UseProgram(_program);
+        
+        // Загружаем контрольные точки
+        GL.Uniform3(controlPointsLocation, 4, ref controlPoints[0].X);
+
+        // Подготовка VAO и буферов для значений t
+        float[] tValues = new float[100];
+        for (int i = 0; i < tValues.Length; i++)
+        {
+            tValues[i] = (float)i / (tValues.Length - 1);
         }
 
-        protected override void OnUpdateFrame(FrameEventArgs args)
+        _vao = GL.GenVertexArray();
+        GL.BindVertexArray(_vao);
+
+        _vbo = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, tValues.Length * sizeof(float), tValues, BufferUsageHint.StaticDraw);
+
+        GL.VertexAttribPointer(0, 1, VertexAttribPointerType.Float, false, sizeof(float), 0);
+        GL.EnableVertexAttribArray(0);
+    }
+
+    protected override void OnRenderFrame(FrameEventArgs args)
+    {
+        base.OnRenderFrame(args);
+
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+
+        GL.UseProgram(_program);
+        GL.BindVertexArray(_vao);
+        GL.DrawArrays(PrimitiveType.LineStrip, 0, 100);
+
+        Context.SwapBuffers();
+    }
+
+    protected override void OnUnload()
+    {
+        base.OnUnload();
+
+        GL.DeleteProgram(_program);
+        GL.DeleteBuffer(_vbo);
+        GL.DeleteVertexArray(_vao);
+    }
+
+    private int CreateProgram(string vertexShaderSource, string fragmentShaderSource)
+    {
+        int vertexShader = GL.CreateShader(ShaderType.VertexShader);
+        GL.ShaderSource(vertexShader, vertexShaderSource);
+        GL.CompileShader(vertexShader);
+
+        int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
+        GL.ShaderSource(fragmentShader, fragmentShaderSource);
+        GL.CompileShader(fragmentShader);
+
+        int program = GL.CreateProgram();
+        GL.AttachShader(program, vertexShader);
+        GL.AttachShader(program, fragmentShader);
+        GL.LinkProgram(program);
+
+        GL.DetachShader(program, vertexShader);
+        GL.DetachShader(program, fragmentShader);
+        GL.DeleteShader(vertexShader);
+        GL.DeleteShader(fragmentShader);
+
+        return program;
+    }
+
+    private void CheckProgramLink(int program)
+    {
+        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int success);
+        if (success == 0)
         {
-            base.OnUpdateFrame(args);
-
-            var input = KeyboardState;
-
-            if (input.IsKeyDown(Keys.Escape))
-                Close();
+            string infoLog = GL.GetProgramInfoLog(program);
+            Console.WriteLine($"Ошибка линковки программы: {infoLog}");
         }
+    }
 
-        protected override void OnRenderFrame(FrameEventArgs args)
+    private static string vertexShaderSource = @"
+        #version 330 core
+        layout(location = 0) in float t;
+
+        uniform vec3 controlPoints[4];
+        void main()
         {
-            base.OnRenderFrame(args);
+            float u = 1.0 - t;
+            vec3 p = u * u * u * controlPoints[0]
+                   + 3 * u * u * t * controlPoints[1]
+                   + 3 * u * t * t * controlPoints[2]
+                   + t * t * t * controlPoints[3];
+            gl_Position = vec4(p, 1.0);
+        }";
 
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-            
-            DrawControlPoints();
-            DrawBezierCurve();
-
-            SwapBuffers();
-        }
-
-        private void DrawControlPoints()
+    private static string fragmentShaderSource = @"
+        #version 330 core
+        out vec4 FragColor;
+        void main()
         {
-            GL.PointSize(10f);
-            GL.Begin(PrimitiveType.Points);
-            GL.Color3(1.0f, 0.0f, 1.0f);
-            
-            foreach (var point in controlPoints)
-            {
-                GL.Vertex2(point);
-            }
-            
-            GL.End();
-        }
+            FragColor = vec4(0.5, 0.5, 0.6, 1.0);
+        }";
 
-        private Vector2 CalculateBezierPoint(float t, Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3)
+    public static void Main(string[] args)
+    {
+        var gameWindowSettings = GameWindowSettings.Default;
+        var nativeWindowSettings = new NativeWindowSettings()
         {
-            float u = 1 - t;
-            float tt = t * t;
-            float uu = u * u;
-            float uuu = uu * u;
-            float ttt = tt * t;
+            Size = new Vector2i(500, 500),
+            Title = "OpenTK Bezier Curve"
+        };
 
-            Vector2 p = uuu * p0;
-            p += 3 * uu * t * p1;
-            p += 3 * u * tt * p2;
-            p += ttt * p3;
-
-            return p;
-        }
-
-        private void DrawBezierCurve()
+        using (var window = new BezierCurveWindow(gameWindowSettings, nativeWindowSettings))
         {
-            GL.LineWidth(2f);
-            GL.Begin(PrimitiveType.LineStrip);
-            GL.Color3(0.0f, 1.0f, 0.0f);
-            
-            for (int i = 0; i < NumCurvePoints; i++)
-            {
-                float t = i / (float)(NumCurvePoints - 1);
-                Vector2 point = CalculateBezierPoint(t, controlPoints[0], controlPoints[1], controlPoints[2], controlPoints[3]);
-                GL.Vertex2(point);
-            }
-            
-            GL.End();
-        }
-
-        protected override void OnResize(ResizeEventArgs e)
-        {
-            base.OnResize(e);
-            GL.Viewport(0, 0, Size.X, Size.Y);
-        }
-
-        public static void Main(string[] args)
-        {
-            var gameWindowSettings = GameWindowSettings.Default;
-            var nativeWindowSettings = new NativeWindowSettings()
-            {
-                Size = new Vector2i(800, 600),
-                Title = "Cubic Bezier Curve"
-            };
-
-            using (var window = new BezierCurveWindow(gameWindowSettings, nativeWindowSettings))
-            {
-                window.Run();
-            }
+            window.Run();
         }
     }
 }
-
