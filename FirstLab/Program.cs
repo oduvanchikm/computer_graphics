@@ -62,6 +62,8 @@ public class BezierWindow : GameWindow
 
     private Vector2[] _controlPoints;
     private bool _isDragging = false;
+    private bool _isAnimating = false;
+    private float _time = 0.0f;
     private Vector2 _mousePosition;
     private int _selectedPoint = -1;
     private Vector2 _lastMousePos;
@@ -77,6 +79,8 @@ public class BezierWindow : GameWindow
     protected override void OnLoad()
     {
         base.OnLoad();
+        
+        KeyDown += Keyboard_KeyDown;
 
         _controlPoints = new Vector2[]
         {
@@ -112,18 +116,45 @@ public class BezierWindow : GameWindow
         GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, Vector2.SizeInBytes, 0);
         GL.EnableVertexAttribArray(0);
     }
+    
+    private void Keyboard_KeyDown(KeyboardKeyEventArgs e)
+    {
+        if (e.Key == Keys.Space)
+        {
+            _isAnimating = !_isAnimating;
+        }
+    }
+    
+    protected override void OnUpdateFrame(FrameEventArgs args)
+    {
+        base.OnUpdateFrame(args);
+
+        if (_isAnimating)
+        {
+            _time += (float)args.Time;
+
+            float speed = 0.001f; 
+
+            for (int i = 0; i < _controlPoints.Length; i++)
+            {
+                _controlPoints[i].X += speed * (float)Math.Sin(_time + i);
+                _controlPoints[i].Y += speed * (float)Math.Cos(_time + i);
+
+                _controlPoints[i].X = Math.Clamp(_controlPoints[i].X, -0.9f, 0.9f);
+                _controlPoints[i].Y = Math.Clamp(_controlPoints[i].Y, -0.9f, 0.9f);
+            }
+    
+            UpdateVertexBuffer();
+        }
+    }
 
     protected override void OnRenderFrame(FrameEventArgs args)
     {
         base.OnRenderFrame(args);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-        
-        
-        //
+
         GL.BindBuffer(BufferTarget.ArrayBuffer, _pointVertexBufferObject);
         GL.BufferData(BufferTarget.ArrayBuffer, _controlPoints.Length * Vector2.SizeInBytes, _controlPoints, BufferUsageHint.DynamicDraw);
-        //
-        
 
         _bezierShader.Use();
         GL.LineWidth(2.0f);
