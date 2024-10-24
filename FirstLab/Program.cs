@@ -39,7 +39,7 @@ public class BezierWindow : GameWindow
 
     void main()
     {
-        FragColor = vec4(1.0, 1.0, 1.0, 1.0); // Белый цвет
+        FragColor = vec4(2.0, 1.0, 1.0, 1.0); // Белый цвет
     }";
     
     private readonly string _vertexShaderSource1 = @"
@@ -69,7 +69,7 @@ public class BezierWindow : GameWindow
     private int _pointVertexArrayObject;
     private int _pointVertexBufferObject;
 
-    public BezierWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
+    private BezierWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
         : base(gameWindowSettings, nativeWindowSettings) { }
     protected override void OnLoad()
     {
@@ -88,7 +88,6 @@ public class BezierWindow : GameWindow
         _bezierShader = new Shader(_vertexShaderSource, _fragmentShaderSource);
         _pointShader = new Shader(_vertexShaderSource1, _fragmentShaderSource1);
    
-        // Массив и буфер для кривой
         _vertexArrayObject = GL.GenVertexArray();
         GL.BindVertexArray(_vertexArrayObject);
 
@@ -108,17 +107,6 @@ public class BezierWindow : GameWindow
 
         GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, Vector2.SizeInBytes, 0);
         GL.EnableVertexAttribArray(0);
-        
-        // MouseMove += OnMouseMove;
-        // MouseDown += OnMouseDown;
-        // MouseUp += OnMouseUp;
-    }
-    
-    private Vector2 ScreenToOpenGLCoords(float mouseX, float mouseY)
-    {
-        float x = 2.0f * mouseX / Size.X - 1.0f;
-        float y = 1.0f - 2.0f * mouseY / Size.Y;
-        return new Vector2(x, y);
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
@@ -126,13 +114,11 @@ public class BezierWindow : GameWindow
         base.OnRenderFrame(args);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        // Отрисовка кривой
         _bezierShader.Use();
         GL.LineWidth(2.0f);
         GL.BindVertexArray(_vertexArrayObject);
         GL.DrawArrays(PrimitiveType.LineStrip, 0, 100);
 
-        // Отрисовка контрольных точек
         _pointShader.Use();
         GL.PointSize(10.0f);
         GL.BindVertexArray(_pointVertexArrayObject);
@@ -171,22 +157,23 @@ public class BezierWindow : GameWindow
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
         base.OnMouseDown(e);
-    
-        if (!_isDragging && e.Button == MouseButton.Left)
+
+        _mousePosition = new Vector2(
+            MousePosition.X / Size.X * 2.0f - 1.0f,
+            -(MousePosition.Y / Size.Y * 2.0f - 1.0f)
+        );
+
+        float clickThreshold = 0.1f;
+
+        for (int i = 0; i < _controlPoints.Length; i++)
         {
-            _mousePosition = new Vector2(
-                MousePosition.X / Size.X * 2.0f - 1.0f,
-                -(MousePosition.Y / Size.Y * 2.0f - 1.0f)
-            );
-            
-            for (int i = 0; i < _controlPoints.Length; i++)
+            if (Vector2.Distance(_controlPoints[i], _mousePosition) < clickThreshold)
             {
-                if (Vector2.Distance(_controlPoints[i], _mousePosition) < 0.05f)
-                {
-                    _selectedPoint = i;
-                    _isDragging = true;
-                    break;
-                }
+                _selectedPoint = i;
+                _controlPoints[_selectedPoint] = _mousePosition; // Mover el punto inmediatamente
+                _isDragging = true;
+                UpdateVertexBuffer();
+                break;
             }
         }
     }
@@ -194,20 +181,16 @@ public class BezierWindow : GameWindow
     protected override void OnMouseMove(MouseMoveEventArgs e)
     {
         base.OnMouseMove(e);
-        
-        if (_isDragging)
-        {
-            _mousePosition = new Vector2(
-                MousePosition.X / Size.X * 2.0f - 1.0f,
-    
-                -(MousePosition.Y / Size.Y * 2.0f - 1.0f)
-            );
 
-            if (_selectedPoint >= 0 && _selectedPoint < _controlPoints.Length)
-            {
-                _controlPoints[_selectedPoint] = _mousePosition;
-                UpdateVertexBuffer();
-            }
+        _mousePosition = new Vector2(
+            MousePosition.X / Size.X * 2.0f - 1.0f,
+            -(MousePosition.Y / Size.Y * 2.0f - 1.0f)
+        );
+
+        if (_isDragging && _selectedPoint >= 0 && _selectedPoint < _controlPoints.Length)
+        {
+            _controlPoints[_selectedPoint] = _mousePosition;
+            UpdateVertexBuffer();
         }
     }
 
@@ -235,7 +218,10 @@ public class BezierWindow : GameWindow
     public static void Main(string[] args)
     {
         var gameWindowSettings = GameWindowSettings.Default;
-        var nativeWindowSettings = new NativeWindowSettings() { Size = new Vector2i(800, 600), Title = "Bezier Curve" };
+        var nativeWindowSettings = new NativeWindowSettings()
+        {
+            Size = new Vector2i(800, 600), Title = "Bezier Curve"
+        };
 
         using (var window = new BezierWindow(gameWindowSettings, nativeWindowSettings))
         {
