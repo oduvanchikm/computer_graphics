@@ -170,7 +170,7 @@ public class BezierWindow : GameWindow
             if (Vector2.Distance(_controlPoints[i], _mousePosition) < clickThreshold)
             {
                 _selectedPoint = i;
-                _controlPoints[_selectedPoint] = _mousePosition; // Mover el punto inmediatamente
+                _controlPoints[_selectedPoint] = _mousePosition; 
                 _isDragging = true;
                 UpdateVertexBuffer();
                 break;
